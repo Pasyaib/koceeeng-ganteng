@@ -304,6 +304,15 @@ function App() {
   const handleClearMedia = () => {
     playClickSound();
     stopWebcam();
+    // Immediately blank image and video sources so canvas goes black
+    if (imageRef.current) {
+      imageRef.current.src = '';
+      imageRef.current.onload = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.src = '';
+      videoRef.current.onloadedmetadata = null;
+    }
     setActiveMedia(null);
     setMediaDetails({ name: '', resolution: '' });
   };
@@ -350,26 +359,11 @@ function App() {
     mouseRef.current.active = 1.0;
   };
 
-  // Initialize Renderer and load default sample image
+  // Initialize Renderer — start blank, no default image
   useEffect(() => {
     if (canvasRef.current) {
       rendererRef.current = new RetroEffectRenderer(canvasRef.current);
     }
-    
-    // Load default sample image on mount to match screenshot state
-    setActiveMedia('image');
-    setMediaDetails({ name: 'IMAGE_WINONA_01.PNG', resolution: '1876 x 2011' });
-    setTimeout(() => {
-      if (imageRef.current) {
-        imageRef.current.src = '/sample.png';
-        imageRef.current.onload = () => {
-          setMediaDetails({
-            name: 'IMAGE_WINONA_01.PNG',
-            resolution: `${imageRef.current.naturalWidth} x ${imageRef.current.naturalHeight}`
-          });
-        };
-      }
-    }, 50);
 
     return () => {
       if (rendererRef.current) {
@@ -455,32 +449,33 @@ function App() {
     setMediaDetails(prev => ({ ...prev, name: file.name, resolution: 'Loading...' }));
 
     if (file.type.startsWith('image/')) {
+      // Clear old src first so imageRef.complete resets
+      if (imageRef.current) imageRef.current.src = '';
       setActiveMedia('image');
-      setTimeout(() => {
-        if (imageRef.current) {
-          imageRef.current.src = objectUrl;
-          imageRef.current.onload = () => {
-            setMediaDetails(prev => ({
-              ...prev,
-              resolution: `${imageRef.current.naturalWidth} x ${imageRef.current.naturalHeight}`
-            }));
-          };
-        }
-      }, 50);
+      if (imageRef.current) {
+        imageRef.current.src = objectUrl;
+        imageRef.current.onload = () => {
+          setMediaDetails(prev => ({
+            ...prev,
+            resolution: `${imageRef.current.naturalWidth} x ${imageRef.current.naturalHeight}`
+          }));
+          // Force settings update so the render loop picks up the new image immediately
+          setSettings(prev => ({ ...prev }));
+        };
+      }
     } else if (file.type.startsWith('video/')) {
+      if (videoRef.current) videoRef.current.src = '';
       setActiveMedia('video');
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.src = objectUrl;
-          videoRef.current.onloadedmetadata = () => {
-            setMediaDetails(prev => ({
-              ...prev,
-              resolution: `${videoRef.current.videoWidth} x ${videoRef.current.videoHeight}`
-            }));
-          };
-          videoRef.current.play().catch(e => console.log('Video autoplay blocked'));
-        }
-      }, 50);
+      if (videoRef.current) {
+        videoRef.current.src = objectUrl;
+        videoRef.current.onloadedmetadata = () => {
+          setMediaDetails(prev => ({
+            ...prev,
+            resolution: `${videoRef.current.videoWidth} x ${videoRef.current.videoHeight}`
+          }));
+        };
+        videoRef.current.play().catch(e => console.log('Video autoplay blocked'));
+      }
     }
   };
 
