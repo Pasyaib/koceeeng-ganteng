@@ -511,6 +511,17 @@ function App() {
     setActiveMedia(null);
   };
 
+  const toggleFullscreen = () => {
+    playClickSound();
+    if (!document.fullscreenElement) {
+      canvasRef.current?.requestFullscreen().catch(err => {
+        alert(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
   // Preset Selector
   const applyPreset = (presetName) => {
     playClickSound();
@@ -890,13 +901,6 @@ function App() {
                   </div>
                   <div className="text-[10px] text-[#B85D19]/70 font-mono">PNG, JPG, GIF, MP4, WebM</div>
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
               </div>
           </section>
 
@@ -991,11 +995,11 @@ function App() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </button>
-              {/* Reset Zoom Button */}
+              {/* Fullscreen Button */}
               <button 
-                onClick={() => setZoom(100)}
+                onClick={toggleFullscreen}
                 className="border border-term-border w-7 h-7 flex items-center justify-center hover:bg-term-panel hover:text-term-text-bright text-term-text-dim transition-colors"
-                title="Reset Zoom"
+                title="Toggle Fullscreen"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -1086,13 +1090,6 @@ function App() {
                     Webcam
                   </button>
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
               </div>
             </div>
           )}
@@ -1665,6 +1662,13 @@ function App() {
           </section>
         </aside>
       </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
       <Agentation />
     </div>
   );
