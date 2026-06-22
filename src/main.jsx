@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { RetroEffectRenderer } from './renderer.js';
-import { Agentation } from 'agentation';
 
 // ASCII/Matrix presets
 const charsets = {
@@ -210,6 +209,27 @@ const defaultSettings = {
     chemicalSwirl: 0.5,
     edgeBlur: 0.7,
     silverContrast: 0.5,
+    brightness: 0.0,
+    contrast: 0.0
+  },
+
+  cga: {
+    brightness: 0.0,
+    contrast: 0.0
+  },
+  technicolor: {
+    brightness: 0.0,
+    contrast: 0.0
+  },
+  vhsGlitch: {
+    brightness: 0.0,
+    contrast: 0.0
+  },
+  solarization: {
+    brightness: 0.0,
+    contrast: 0.0
+  },
+  vectorScope: {
     brightness: 0.0,
     contrast: 0.0
   },
@@ -568,7 +588,7 @@ function App() {
     playClickSound();
     if (!canvasRef.current) return;
     const link = document.createElement('a');
-    link.download = `grainrad-${settings.activeEffect}-${Date.now()}.png`;
+    link.download = `kooceeng-${settings.activeEffect}-${Date.now()}.png`;
     link.href = canvasRef.current.toDataURL('image/png');
     link.click();
   };
@@ -602,7 +622,7 @@ function App() {
         const blob = new Blob(recordedChunks.current, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.download = `grainrad-recording-${Date.now()}.webm`;
+        link.download = `kooceeng-recording-${Date.now()}.webm`;
         link.href = url;
         link.click();
         URL.revokeObjectURL(url);
@@ -677,7 +697,7 @@ function App() {
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.download = `grainrad-ascii-${Date.now()}.txt`;
+    link.download = `kooceeng-ascii-${Date.now()}.txt`;
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);
@@ -821,7 +841,12 @@ function App() {
       { id: 'filmBurn', label: 'Film Burn' },
       { id: 'polaroidFade', label: 'Polaroid Fade' },
       { id: 'crtScanlines', label: 'CRT Scanlines' },
-      { id: 'cmykMisregistration', label: 'CMYK Misregistration' }
+      { id: 'cmykMisregistration', label: 'CMYK Misregistration' },
+      { id: 'cga', label: 'CGA Graphics' },
+      { id: 'technicolor', label: 'Technicolor 3-Strip' },
+      { id: 'vhsGlitch', label: 'VHS Glitch' },
+      { id: 'solarization', label: 'Solarization' },
+      { id: 'vectorScope', label: 'Vector Scope' }
     ];
     const fx = fxList.find(f => f.id === settings.activeEffect);
     return fx ? fx.label : settings.activeEffect.replace(/([A-Z])/g, ' $1');
@@ -872,7 +897,8 @@ function App() {
         <aside className="w-full md:w-72 panel border-r border-term-border p-4 md:p-6 flex flex-col gap-6 overflow-y-auto h-full order-2 md:order-1">
           
           {/* Logo / Header */}
-          <div className="mb-2 border-b border-[#8B4513]/50 pb-4">
+          <div className="mb-2 border-b border-[#8B4513]/50 pb-4 flex items-center gap-0.5">
+            <img src="/logo.png" alt="kooceeng logo" className="w-6 h-6 object-contain rounded-sm" />
             <h1 className="text-sm font-normal tracking-wide text-term-text-bright">
               kooceeng
             </h1>
@@ -924,6 +950,11 @@ function App() {
             <div className="flex flex-col gap-1.5 pt-2">
                 {[
                   { id: 'passthrough', label: 'Normal' },
+                  { id: 'halation', label: 'Halation Glow' },
+                  { id: 'lightLeaks', label: 'Light Leaks' },
+                  { id: 'filmBurn', label: 'Film Burn' },
+                  { id: 'polaroidFade', label: 'Polaroid Fade' },
+                  { id: 'crtScanlines', label: 'CRT Screen' },
                   { id: 'halftone', label: 'Halftone' },
                   { id: 'cmykMisregistration', label: 'CMYK Shift' },
                   { id: 'risograph', label: 'Risograph' },
@@ -942,7 +973,12 @@ function App() {
                   { id: 'typewriter', label: 'Typewriter' },
                   { id: 'mimeograph', label: 'Mimeograph' },
                   { id: 'chromolithograph', label: 'Chromolithograph' },
-                  { id: 'tintype', label: 'Tintype' }
+                  { id: 'tintype', label: 'Tintype' },
+                  { id: 'cga', label: 'CGA Graphics' },
+                  { id: 'technicolor', label: 'Technicolor 3-Strip' },
+                  { id: 'vhsGlitch', label: 'VHS Glitch' },
+                  { id: 'solarization', label: 'Solarization' },
+                  { id: 'vectorScope', label: 'Vector Scope' }
                 ].map(fx => (
                   <button
                     key={fx.id}
@@ -964,10 +1000,10 @@ function App() {
           </section>
 
           {/* Left menu footer */}
-          <div className="mt-auto border-t border-[#8B4513]/50 pt-4 flex gap-3 text-xs text-term-text-dim pl-1">
-            <a href="#follow" className="hover:text-term-text">Follow</a>
-            <a href="#about" className="hover:text-term-text">About</a>
-            <a href="#changelog" className="hover:text-term-text">Changelog</a>
+          <div className="mt-auto border-t border-[#8B4513]/50 pt-4 flex flex-col gap-2 pl-1">
+            <div className="text-[10px] text-term-text-dim/80 font-mono">
+              crafted by <a href="https://mediocree.works/" target="_blank" rel="noopener noreferrer" className="hover:text-term-text-bright hover:underline">mediocree.works</a>
+            </div>
           </div>
         </aside>
 
@@ -983,7 +1019,7 @@ function App() {
           <div className="absolute bottom-6 left-6 w-4 h-4 border-b-2 border-l-2 border-term-border/30 pointer-events-none z-10"></div>
           <div className="absolute bottom-6 right-6 w-4 h-4 border-b-2 border-r-2 border-term-border/30 pointer-events-none z-10"></div>
           {/* Header Bar */}
-          <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none z-20 font-mono">
+          <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none z-30 font-mono">
             <div className="w-1/3"></div>
             <div className="text-xs text-term-text-bright font-mono uppercase tracking-wider flex items-center gap-1.5 justify-center w-1/3 text-center select-none">
               <span className="w-1.5 h-1.5 rounded-full bg-term-text-bright animate-pulse"></span>
@@ -993,7 +1029,7 @@ function App() {
               {/* File Browse Button */}
               <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="border border-term-border w-7 h-7 flex items-center justify-center hover:bg-term-panel hover:text-term-text-bright text-term-text-dim transition-colors"
+                className="border border-term-border w-7 h-7 flex items-center justify-center hover:bg-term-panel hover:text-term-text-bright text-term-text-dim transition-colors pointer-events-auto"
                 title="Select File"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1003,7 +1039,7 @@ function App() {
               {/* Webcam Button */}
               <button 
                 onClick={toggleWebcam}
-                className={`border w-7 h-7 flex items-center justify-center transition-colors ${activeMedia === 'webcam' ? 'border-term-text text-term-text-bright bg-term-border/40' : 'border-term-border text-term-text-dim hover:bg-term-panel hover:text-term-text-bright'}`}
+                className={`border w-7 h-7 flex items-center justify-center transition-colors pointer-events-auto ${activeMedia === 'webcam' ? 'border-term-text text-term-text-bright bg-term-border/40' : 'border-term-border text-term-text-dim hover:bg-term-panel hover:text-term-text-bright'}`}
                 title="Webcam Feed"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1013,7 +1049,7 @@ function App() {
               {/* Fullscreen Button */}
               <button 
                 onClick={toggleFullscreen}
-                className="border border-term-border w-7 h-7 flex items-center justify-center hover:bg-term-panel hover:text-term-text-bright text-term-text-dim transition-colors"
+                className="border border-term-border w-7 h-7 flex items-center justify-center hover:bg-term-panel hover:text-term-text-bright text-term-text-dim transition-colors pointer-events-auto"
                 title="Toggle Fullscreen"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1612,7 +1648,6 @@ function App() {
         onChange={handleFileUpload}
         className="hidden"
       />
-      <Agentation />
     </div>
   );
 }

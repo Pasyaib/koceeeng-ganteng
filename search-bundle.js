@@ -1,5 +1,5 @@
 import fs from 'fs';
-const code = fs.readFileSync('grainrad-bundle.js', 'utf8');
+const code = fs.readFileSync('kooceeng-bundle.js', 'utf8');
 
 function findKeywords(keywords) {
   for (const keyword of keywords) {

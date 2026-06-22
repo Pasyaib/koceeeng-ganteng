@@ -1,5 +1,5 @@
 import fs from 'fs';
-const code = fs.readFileSync('grainrad-bundle.js', 'utf8');
+const code = fs.readFileSync('kooceeng-bundle.js', 'utf8');
 
 const keywords = ['atlas', 'fontAtlas', 'FontAtlas', 'canvas', 'getContext("2d")', 'fontSize', 'font ='];
 

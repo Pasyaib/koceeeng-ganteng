@@ -1,5 +1,5 @@
 import fs from 'fs';
-const code = fs.readFileSync('grainrad-bundle.js', 'utf8');
+const code = fs.readFileSync('kooceeng-bundle.js', 'utf8');
 
 // We want to find the JSX definitions for the UI control groups.
 // They typically look like: title: "Dithering", title: "ASCII", etc.

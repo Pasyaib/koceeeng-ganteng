@@ -1365,6 +1365,145 @@ void main() {
 }
 `;
 
+// 25. CGA Graphics Fragment
+export const cgaFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform float brightness;
+uniform float contrast;
+${sharedHelpers}
+void main() {
+  vec3 col = texture(inputTexture, vTexCoord).rgb;
+  col = applyBrightnessContrast(col, brightness, contrast);
+  float luma = luminance(col);
+  
+  vec3 c0 = vec3(0.0); // Black
+  vec3 c1 = vec3(0.0, 1.0, 1.0); // Cyan
+  vec3 c2 = vec3(1.0, 0.0, 1.0); // Magenta
+  vec3 c3 = vec3(1.0); // White
+  
+  vec3 finalCol;
+  if (luma < 0.25) {
+    finalCol = c0;
+  } else if (luma < 0.5) {
+    finalCol = c1;
+  } else if (luma < 0.75) {
+    finalCol = c2;
+  } else {
+    finalCol = c3;
+  }
+  
+  fragColor = vec4(finalCol, 1.0);
+}
+`;
+
+// 26. Technicolor 3-Strip Fragment
+export const technicolorFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform float brightness;
+uniform float contrast;
+${sharedHelpers}
+void main() {
+  vec3 col = texture(inputTexture, vTexCoord).rgb;
+  col = applyBrightnessContrast(col, brightness, contrast);
+  
+  float r = col.r;
+  float g = col.g;
+  float b = col.b;
+  
+  vec3 redFilter = vec3(r, (1.0 - g) * r, (1.0 - b) * r);
+  vec3 greenFilter = vec3((1.0 - r) * g, g, (1.0 - b) * g);
+  vec3 blueFilter = vec3((1.0 - r) * b, (1.0 - g) * b, b);
+  
+  vec3 finalCol = redFilter + greenFilter + blueFilter;
+  finalCol = mix(col, finalCol, 0.85);
+  
+  fragColor = vec4(clamp(finalCol, 0.0, 1.0), 1.0);
+}
+`;
+
+// 27. VHS Glitch Fragment
+export const vhsGlitchFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform float time;
+uniform float brightness;
+uniform float contrast;
+${sharedHelpers}
+void main() {
+  vec2 uv = vTexCoord;
+  float warp = sin(uv.y * 10.0 + time * 5.0) * noise2d(vec2(uv.y * 3.0, time)) * 0.005;
+  uv.x += warp;
+  
+  float r = texture(inputTexture, uv + vec2(0.006, 0.0)).r;
+  float g = texture(inputTexture, uv).g;
+  float b = texture(inputTexture, uv - vec2(0.006, 0.0)).b;
+  
+  vec3 col = vec3(r, g, b);
+  col = applyBrightnessContrast(col, brightness, contrast);
+  
+  float noiseLine = step(0.98, sin(uv.y * 4.0 - time * 2.0));
+  float staticNoise = hash2d(uv * time) * 0.3 * noiseLine;
+  col += vec3(staticNoise);
+  
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}
+`;
+
+// 28. Solarization Fragment
+export const solarizationFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform float brightness;
+uniform float contrast;
+${sharedHelpers}
+void main() {
+  vec3 col = texture(inputTexture, vTexCoord).rgb;
+  col = applyBrightnessContrast(col, brightness, contrast);
+  
+  float luma = luminance(col);
+  vec3 solar = vec3(abs(col.r - step(0.5, luma) * 2.0 * (col.r - 0.5)));
+  col = mix(col, solar, 0.8);
+  
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}
+`;
+
+// 29. Vector Scope Fragment
+export const vectorScopeFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform float time;
+uniform float brightness;
+uniform float contrast;
+${sharedHelpers}
+void main() {
+  vec2 uv = vTexCoord;
+  vec3 col = texture(inputTexture, uv).rgb;
+  col = applyBrightnessContrast(col, brightness, contrast);
+  float luma = luminance(col);
+  
+  float lines = sin(uv.y * 150.0 + time * 3.0);
+  float vectorLine = smoothstep(0.4, 0.6, luma + lines * 0.15);
+  
+  vec3 baseColor = vec3(0.0, 0.9, 0.2) * vectorLine;
+  baseColor += vec3(0.0, 0.15, 0.05) * (0.5 + 0.5 * sin(uv.y * 300.0));
+  
+  fragColor = vec4(clamp(baseColor, 0.0, 1.0), 1.0);
+}
+`;
+
 // Shaders mapping dictionary
 export const shaderMap = {
   passthrough: passthroughFragment,
@@ -1391,5 +1530,10 @@ export const shaderMap = {
   typewriter: typewriterFragment,
   mimeograph: mimeographFragment,
   chromolithograph: chromolithographFragment,
-  tintype: tintypeFragment
+  tintype: tintypeFragment,
+  cga: cgaFragment,
+  technicolor: technicolorFragment,
+  vhsGlitch: vhsGlitchFragment,
+  solarization: solarizationFragment,
+  vectorScope: vectorScopeFragment
 };

@@ -1,5 +1,5 @@
 import fs from 'fs';
-const code = fs.readFileSync('grainrad-bundle.js', 'utf8');
+const code = fs.readFileSync('kooceeng-bundle.js', 'utf8');
 
 // Search for the definition of Mg.
 // Usually defined as const Mg = { ... } or Mg = { ... }

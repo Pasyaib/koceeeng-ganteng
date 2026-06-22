@@ -1,5 +1,5 @@
 import fs from 'fs';
-const code = fs.readFileSync('grainrad-bundle.js', 'utf8');
+const code = fs.readFileSync('kooceeng-bundle.js', 'utf8');
 
 // Search for Rx() or const Rx = or Rx=
 let pos = -1;

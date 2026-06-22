@@ -1,5 +1,5 @@
 import fs from 'fs';
-const code = fs.readFileSync('grainrad-bundle.js', 'utf8');
+const code = fs.readFileSync('kooceeng-bundle.js', 'utf8');
 
 // We see "emoji:" ·•○◎●◐◑◒◓◔◕◖◗",custom:" .:+*#@"},Mg="
 // Let's print out 500 characters before this match
