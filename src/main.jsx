@@ -435,6 +435,17 @@ function App() {
     return () => cancelAnimationFrame(animationFrameId.current);
   }, [activeMedia, settings]);
 
+  // Clear canvas immediately when media is removed
+  useEffect(() => {
+    if (!activeMedia && canvasRef.current) {
+      const gl = canvasRef.current.getContext('webgl2') || canvasRef.current.getContext('webgl');
+      if (gl) {
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      }
+    }
+  }, [activeMedia]);
+
   // Handle file uploads
   const handleFileUpload = (e) => {
     playClickSound();
