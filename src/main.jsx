@@ -217,21 +217,21 @@ const defaultSettings = {
   // CRT Post-Processing settings
   postprocess: {
     bloomEnabled: false,
-    bloomIntensity: 0.4,
+    bloomIntensity: 0.0,
     grainEnabled: false,
-    grainIntensity: 15.0,
+    grainIntensity: 0.0,
     grainSize: 1.5,
     grainSpeed: 1.0,
     chromaticEnabled: false,
-    chromaticOffset: 1.2,
+    chromaticOffset: 0.0,
     scanlinesEnabled: false,
-    scanlinesOpacity: 0.25,
+    scanlinesOpacity: 0.0,
     scanlinesSpacing: 2.0,
     vignetteEnabled: false,
-    vignetteIntensity: 0.5,
+    vignetteIntensity: 0.0,
     vignetteRadius: 0.65,
     crtEnabled: false,
-    crtAmount: 0.05,
+    crtAmount: 0.0,
     phosphorEnabled: false,
     phosphorColor: '#00ff00'
   }
@@ -695,13 +695,28 @@ function App() {
   };
 
   const updatePostprocess = (key, val) => {
-    setSettings(prev => ({
-      ...prev,
-      postprocess: {
-        ...prev.postprocess,
-        [key]: val
+    setSettings(prev => {
+      let enabledKey = null;
+      if (key === 'bloomIntensity') enabledKey = 'bloomEnabled';
+      else if (key === 'crtAmount') enabledKey = 'crtEnabled';
+      else if (key === 'chromaticOffset') enabledKey = 'chromaticEnabled';
+      else if (key === 'scanlinesOpacity') enabledKey = 'scanlinesEnabled';
+      else if (key === 'grainIntensity') enabledKey = 'grainEnabled';
+      else if (key === 'vignetteIntensity') enabledKey = 'vignetteEnabled';
+
+      const updates = { [key]: val };
+      if (enabledKey !== null) {
+        updates[enabledKey] = val > 0.0;
       }
-    }));
+
+      return {
+        ...prev,
+        postprocess: {
+          ...prev.postprocess,
+          ...updates
+        }
+      };
+    });
   };
 
   // Helper render components styled matching the screenshot
@@ -1396,191 +1411,119 @@ function App() {
             </div>
 
             {expandedSections.postprocessing && (
-              <div className="space-y-2.5 pt-1 text-xs text-term-text-bright font-mono">
+              <div className="space-y-3 pt-1 text-xs text-term-text-bright font-mono">
                 {/* Bloom */}
                 <div className="border-b border-term-border/20 pb-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold">Bloom Effect</span>
-                    <button 
-                      onClick={() => updatePostprocess('bloomEnabled', !settings.postprocess.bloomEnabled)}
-                      className="text-[10px] border border-term-border px-1.5 py-0.5"
-                    >
-                      {settings.postprocess.bloomEnabled ? 'ON' : 'OFF'}
-                    </button>
+                  <div className="clean-slider-row">
+                    <span className="clean-slider-label">Bloom Intensity</span>
+                    <span className="clean-slider-value">{settings.postprocess.bloomIntensity.toFixed(2)}</span>
+                    <input
+                      type="range" min="0.0" max="2.0" step="0.05"
+                      value={settings.postprocess.bloomIntensity}
+                      onChange={(e) => updatePostprocess('bloomIntensity', parseFloat(e.target.value))}
+                      className="clean-slider-input"
+                    />
                   </div>
-                  {settings.postprocess.bloomEnabled && (
-                    <div className="clean-slider-row">
-                      <span className="clean-slider-label">Intensity</span>
-                      <span className="clean-slider-value">{settings.postprocess.bloomIntensity.toFixed(2)}</span>
-                      <input
-                        type="range" min="0.0" max="2.0" step="0.05"
-                        value={settings.postprocess.bloomIntensity}
-                        onChange={(e) => updatePostprocess('bloomIntensity', parseFloat(e.target.value))}
-                        className="clean-slider-input"
-                      />
-                    </div>
-                  )}
                 </div>
 
                 {/* CRT Curvature */}
                 <div className="border-b border-term-border/20 pb-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold">CRT Curvature</span>
-                    <button 
-                      onClick={() => updatePostprocess('crtEnabled', !settings.postprocess.crtEnabled)}
-                      className="text-[10px] border border-term-border px-1.5 py-0.5"
-                    >
-                      {settings.postprocess.crtEnabled ? 'ON' : 'OFF'}
-                    </button>
+                  <div className="clean-slider-row">
+                    <span className="clean-slider-label">CRT Curvature</span>
+                    <span className="clean-slider-value">{settings.postprocess.crtAmount.toFixed(3)}</span>
+                    <input
+                      type="range" min="0.0" max="0.15" step="0.005"
+                      value={settings.postprocess.crtAmount}
+                      onChange={(e) => updatePostprocess('crtAmount', parseFloat(e.target.value))}
+                      className="clean-slider-input"
+                    />
                   </div>
-                  {settings.postprocess.crtEnabled && (
-                    <div className="clean-slider-row">
-                      <span className="clean-slider-label">Warp Amount</span>
-                      <span className="clean-slider-value">{settings.postprocess.crtAmount.toFixed(3)}</span>
-                      <input
-                        type="range" min="0.0" max="0.15" step="0.005"
-                        value={settings.postprocess.crtAmount}
-                        onChange={(e) => updatePostprocess('crtAmount', parseFloat(e.target.value))}
-                        className="clean-slider-input"
-                      />
-                    </div>
-                  )}
                 </div>
 
                 {/* Chromatic Aberration */}
                 <div className="border-b border-term-border/20 pb-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold">Chromatic Aberration</span>
-                    <button 
-                      onClick={() => updatePostprocess('chromaticEnabled', !settings.postprocess.chromaticEnabled)}
-                      className="text-[10px] border border-term-border px-1.5 py-0.5"
-                    >
-                      {settings.postprocess.chromaticEnabled ? 'ON' : 'OFF'}
-                    </button>
+                  <div className="clean-slider-row">
+                    <span className="clean-slider-label">Chromatic Aberration</span>
+                    <span className="clean-slider-value">{settings.postprocess.chromaticOffset.toFixed(1)}</span>
+                    <input
+                      type="range" min="0.0" max="5.0" step="0.1"
+                      value={settings.postprocess.chromaticOffset}
+                      onChange={(e) => updatePostprocess('chromaticOffset', parseFloat(e.target.value))}
+                      className="clean-slider-input"
+                    />
                   </div>
-                  {settings.postprocess.chromaticEnabled && (
-                    <div className="clean-slider-row">
-                      <span className="clean-slider-label">Offset</span>
-                      <span className="clean-slider-value">{settings.postprocess.chromaticOffset.toFixed(1)}</span>
-                      <input
-                        type="range" min="0.0" max="5.0" step="0.1"
-                        value={settings.postprocess.chromaticOffset}
-                        onChange={(e) => updatePostprocess('chromaticOffset', parseFloat(e.target.value))}
-                        className="clean-slider-input"
-                      />
-                    </div>
-                  )}
                 </div>
 
                 {/* Scanlines */}
-                <div className="border-b border-term-border/20 pb-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold">Scanlines</span>
-                    <button 
-                      onClick={() => updatePostprocess('scanlinesEnabled', !settings.postprocess.scanlinesEnabled)}
-                      className="text-[10px] border border-term-border px-1.5 py-0.5"
-                    >
-                      {settings.postprocess.scanlinesEnabled ? 'ON' : 'OFF'}
-                    </button>
+                <div className="border-b border-term-border/20 pb-2 space-y-2">
+                  <div className="clean-slider-row">
+                    <span className="clean-slider-label">Scanline Opacity</span>
+                    <span className="clean-slider-value">{settings.postprocess.scanlinesOpacity.toFixed(2)}</span>
+                    <input
+                      type="range" min="0.0" max="1.0" step="0.05"
+                      value={settings.postprocess.scanlinesOpacity}
+                      onChange={(e) => updatePostprocess('scanlinesOpacity', parseFloat(e.target.value))}
+                      className="clean-slider-input"
+                    />
                   </div>
-                  {settings.postprocess.scanlinesEnabled && (
-                    <>
-                      <div className="clean-slider-row">
-                        <span className="clean-slider-label">Opacity</span>
-                        <span className="clean-slider-value">{settings.postprocess.scanlinesOpacity.toFixed(2)}</span>
-                        <input
-                          type="range" min="0.0" max="1.0" step="0.05"
-                          value={settings.postprocess.scanlinesOpacity}
-                          onChange={(e) => updatePostprocess('scanlinesOpacity', parseFloat(e.target.value))}
-                          className="clean-slider-input"
-                        />
-                      </div>
-                      <div className="clean-slider-row">
-                        <span className="clean-slider-label">Spacing</span>
-                        <span className="clean-slider-value">{settings.postprocess.scanlinesSpacing.toFixed(1)}</span>
-                        <input
-                          type="range" min="1.0" max="5.0" step="0.5"
-                          value={settings.postprocess.scanlinesSpacing}
-                          onChange={(e) => updatePostprocess('scanlinesSpacing', parseFloat(e.target.value))}
-                          className="clean-slider-input"
-                        />
-                      </div>
-                    </>
-                  )}
+                  <div className="clean-slider-row">
+                    <span className="clean-slider-label">Scanline Spacing</span>
+                    <span className="clean-slider-value">{settings.postprocess.scanlinesSpacing.toFixed(1)}</span>
+                    <input
+                      type="range" min="1.0" max="5.0" step="0.5"
+                      value={settings.postprocess.scanlinesSpacing}
+                      onChange={(e) => updatePostprocess('scanlinesSpacing', parseFloat(e.target.value))}
+                      className="clean-slider-input"
+                    />
+                  </div>
                 </div>
 
                 {/* Film Grain */}
-                <div className="border-b border-term-border/20 pb-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold">Film Grain</span>
-                    <button 
-                      onClick={() => updatePostprocess('grainEnabled', !settings.postprocess.grainEnabled)}
-                      className="text-[10px] border border-term-border px-1.5 py-0.5"
-                    >
-                      {settings.postprocess.grainEnabled ? 'ON' : 'OFF'}
-                    </button>
+                <div className="border-b border-term-border/20 pb-2 space-y-2">
+                  <div className="clean-slider-row">
+                    <span className="clean-slider-label">Film Grain Intensity</span>
+                    <span className="clean-slider-value">{settings.postprocess.grainIntensity.toFixed(0)}</span>
+                    <input
+                      type="range" min="0.0" max="50.0" step="1.0"
+                      value={settings.postprocess.grainIntensity}
+                      onChange={(e) => updatePostprocess('grainIntensity', parseFloat(e.target.value))}
+                      className="clean-slider-input"
+                    />
                   </div>
-                  {settings.postprocess.grainEnabled && (
-                    <>
-                      <div className="clean-slider-row">
-                        <span className="clean-slider-label">Intensity</span>
-                        <span className="clean-slider-value">{settings.postprocess.grainIntensity.toFixed(0)}</span>
-                        <input
-                          type="range" min="0.0" max="50.0" step="1.0"
-                          value={settings.postprocess.grainIntensity}
-                          onChange={(e) => updatePostprocess('grainIntensity', parseFloat(e.target.value))}
-                          className="clean-slider-input"
-                        />
-                      </div>
-                      <div className="clean-slider-row">
-                        <span className="clean-slider-label">Size</span>
-                        <span className="clean-slider-value">{settings.postprocess.grainSize.toFixed(1)}</span>
-                        <input
-                          type="range" min="1.0" max="4.0" step="0.1"
-                          value={settings.postprocess.grainSize}
-                          onChange={(e) => updatePostprocess('grainSize', parseFloat(e.target.value))}
-                          className="clean-slider-input"
-                        />
-                      </div>
-                    </>
-                  )}
+                  <div className="clean-slider-row">
+                    <span className="clean-slider-label">Film Grain Size</span>
+                    <span className="clean-slider-value">{settings.postprocess.grainSize.toFixed(1)}</span>
+                    <input
+                      type="range" min="1.0" max="4.0" step="0.1"
+                      value={settings.postprocess.grainSize}
+                      onChange={(e) => updatePostprocess('grainSize', parseFloat(e.target.value))}
+                      className="clean-slider-input"
+                    />
+                  </div>
                 </div>
 
                 {/* Vignette */}
-                <div className="border-b border-term-border/20 pb-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold">Vignette shadow</span>
-                    <button 
-                      onClick={() => updatePostprocess('vignetteEnabled', !settings.postprocess.vignetteEnabled)}
-                      className="text-[10px] border border-term-border px-1.5 py-0.5"
-                    >
-                      {settings.postprocess.vignetteEnabled ? 'ON' : 'OFF'}
-                    </button>
+                <div className="border-b border-term-border/20 pb-2 space-y-2">
+                  <div className="clean-slider-row">
+                    <span className="clean-slider-label">Vignette Intensity</span>
+                    <span className="clean-slider-value">{settings.postprocess.vignetteIntensity.toFixed(2)}</span>
+                    <input
+                      type="range" min="0.0" max="1.0" step="0.05"
+                      value={settings.postprocess.vignetteIntensity}
+                      onChange={(e) => updatePostprocess('vignetteIntensity', parseFloat(e.target.value))}
+                      className="clean-slider-input"
+                    />
                   </div>
-                  {settings.postprocess.vignetteEnabled && (
-                    <>
-                      <div className="clean-slider-row">
-                        <span className="clean-slider-label">Intensity</span>
-                        <span className="clean-slider-value">{settings.postprocess.vignetteIntensity.toFixed(2)}</span>
-                        <input
-                          type="range" min="0.0" max="1.0" step="0.05"
-                          value={settings.postprocess.vignetteIntensity}
-                          onChange={(e) => updatePostprocess('vignetteIntensity', parseFloat(e.target.value))}
-                          className="clean-slider-input"
-                        />
-                      </div>
-                      <div className="clean-slider-row">
-                        <span className="clean-slider-label">Radius</span>
-                        <span className="clean-slider-value">{settings.postprocess.vignetteRadius.toFixed(2)}</span>
-                        <input
-                          type="range" min="0.1" max="1.0" step="0.05"
-                          value={settings.postprocess.vignetteRadius}
-                          onChange={(e) => updatePostprocess('vignetteRadius', parseFloat(e.target.value))}
-                          className="clean-slider-input"
-                        />
-                      </div>
-                    </>
-                  )}
+                  <div className="clean-slider-row">
+                    <span className="clean-slider-label">Vignette Radius</span>
+                    <span className="clean-slider-value">{settings.postprocess.vignetteRadius.toFixed(2)}</span>
+                    <input
+                      type="range" min="0.1" max="1.0" step="0.05"
+                      value={settings.postprocess.vignetteRadius}
+                      onChange={(e) => updatePostprocess('vignetteRadius', parseFloat(e.target.value))}
+                      className="clean-slider-input"
+                    />
+                  </div>
                 </div>
               </div>
             )}
