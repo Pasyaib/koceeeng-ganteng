@@ -1504,13 +1504,249 @@ void main() {
 }
 `;
 
+// ── HUD FILTERS ──────────────────────────────────────────────────────────────
+
+// HUD 1: Night Vision
+export const nightVisionFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform vec2 resolution;
+uniform float time;
+uniform float brightness;
+uniform float contrast;
+uniform float noiseIntensity;
+uniform float scanlineStrength;
+uniform float vignetteStrength;
+${sharedHelpers}
+void main() {
+  vec2 uv = vTexCoord;
+  vec4 src = texture(inputTexture, uv);
+  float lum = luminance(src.rgb);
+
+  // Phosphor green tint
+  vec3 col = vec3(0.0, lum, 0.0) * 1.4;
+
+  // Noise grain
+  float n = hash2d(uv * resolution + vec2(time * 47.3, time * 31.7));
+  col += vec3(0.0, n * noiseIntensity * 0.25, 0.0);
+
+  // Scanlines
+  float scan = 0.5 + 0.5 * sin(uv.y * resolution.y * 1.5);
+  col *= 1.0 - scanlineStrength * (1.0 - scan) * 0.4;
+
+  // Vignette
+  vec2 vd = uv - 0.5;
+  float vig = 1.0 - vignetteStrength * dot(vd, vd) * 3.5;
+  col *= clamp(vig, 0.0, 1.0);
+
+  col = applyBrightnessContrast(col, brightness, contrast);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}
+`;
+
+// HUD 2: Thermal / Infrared
+export const thermalVisionFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform vec2 resolution;
+uniform float time;
+uniform float brightness;
+uniform float contrast;
+uniform float heatIntensity;
+${sharedHelpers}
+void main() {
+  vec2 uv = vTexCoord;
+  vec4 src = texture(inputTexture, uv);
+  float heat = luminance(src.rgb);
+  heat = clamp(heat * heatIntensity, 0.0, 1.0);
+
+  // Thermal palette: black→purple→red→orange→yellow→white
+  vec3 col;
+  if (heat < 0.2)      col = mix(vec3(0.0,0.0,0.0), vec3(0.3,0.0,0.5), heat / 0.2);
+  else if (heat < 0.4) col = mix(vec3(0.3,0.0,0.5), vec3(0.8,0.0,0.0), (heat-0.2)/0.2);
+  else if (heat < 0.6) col = mix(vec3(0.8,0.0,0.0), vec3(1.0,0.45,0.0), (heat-0.4)/0.2);
+  else if (heat < 0.8) col = mix(vec3(1.0,0.45,0.0), vec3(1.0,1.0,0.0), (heat-0.6)/0.2);
+  else                 col = mix(vec3(1.0,1.0,0.0), vec3(1.0,1.0,1.0), (heat-0.8)/0.2);
+
+  col = applyBrightnessContrast(col, brightness, contrast);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}
+`;
+
+// HUD 3: Military / Tactical HUD
+export const militaryHudFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform vec2 resolution;
+uniform float time;
+uniform float brightness;
+uniform float contrast;
+uniform float overlayOpacity;
+uniform float scanlineStrength;
+${sharedHelpers}
+void main() {
+  vec2 uv = vTexCoord;
+  vec4 src = texture(inputTexture, uv);
+  float lum = luminance(src.rgb);
+
+  // Amber monochrome base
+  vec3 base = vec3(1.0, 0.75, 0.1) * lum;
+
+  // Scanlines
+  float scan = 0.5 + 0.5 * sin(uv.y * resolution.y * 1.2);
+  base *= 1.0 - scanlineStrength * (1.0 - scan) * 0.3;
+
+  // HUD grid overlay (subtle)
+  float gx = abs(fract(uv.x * 20.0) - 0.5);
+  float gy = abs(fract(uv.y * 20.0) - 0.5);
+  float grid = (step(0.47, gx) + step(0.47, gy)) * 0.06 * overlayOpacity;
+  base += vec3(0.2, 0.8, 0.2) * grid;
+
+  // Corner brackets
+  vec2 cp = abs(uv - 0.5) * 2.0;
+  float bk = step(0.88, max(cp.x, cp.y)) * step(min(cp.x, cp.y), 0.92);
+  base = mix(base, vec3(0.2, 1.0, 0.3), bk * overlayOpacity * 0.9);
+
+  // Reticle crosshair
+  vec2 center = abs(uv - 0.5);
+  float ch = (step(center.x, 0.002) * step(0.015, center.y) * step(center.y, 0.05))
+           + (step(center.y, 0.002) * step(0.015, center.x) * step(center.x, 0.05));
+  base = mix(base, vec3(0.3, 1.0, 0.3), ch * overlayOpacity);
+
+  // Vignette
+  float vig = 1.0 - dot(uv - 0.5, uv - 0.5) * 1.8;
+  base *= clamp(vig, 0.0, 1.0);
+
+  base = applyBrightnessContrast(base, brightness, contrast);
+  fragColor = vec4(clamp(base, 0.0, 1.0), 1.0);
+}
+`;
+
+// HUD 4: Glitch HUD / Digital Corruption
+export const glitchHudFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform vec2 resolution;
+uniform float time;
+uniform float brightness;
+uniform float contrast;
+uniform float glitchIntensity;
+uniform float blockSize;
+${sharedHelpers}
+void main() {
+  vec2 uv = vTexCoord;
+
+  // Horizontal block glitch
+  float row = floor(uv.y / (blockSize / resolution.y));
+  float rnd = hash2d(vec2(row, floor(time * 8.0)));
+  float shift = 0.0;
+  if (rnd > (1.0 - glitchIntensity * 0.4)) {
+    shift = (hash2d(vec2(row * 1.3, time * 3.7)) - 0.5) * glitchIntensity * 0.08;
+  }
+  vec2 sampleUv = vec2(fract(uv.x + shift), uv.y);
+
+  // RGB channel split on glitched rows
+  float cr = texture(inputTexture, sampleUv + vec2(glitchIntensity * 0.012, 0.0)).r;
+  float cg = texture(inputTexture, sampleUv).g;
+  float cb = texture(inputTexture, sampleUv - vec2(glitchIntensity * 0.012, 0.0)).b;
+  vec3 col = vec3(cr, cg, cb);
+
+  // Digital scanlines
+  float scan = step(0.5, fract(uv.y * resolution.y * 0.5));
+  col *= 0.85 + 0.15 * scan;
+
+  // Noise flicker
+  float flicker = hash2d(uv * 50.0 + time * 200.0) * 0.06 * glitchIntensity;
+  col += flicker;
+
+  // Cyan/magenta HUD tint on highlights
+  float lum = luminance(col);
+  col = mix(col, col * vec3(0.6, 1.0, 1.0), lum * 0.3 * glitchIntensity);
+
+  col = applyBrightnessContrast(col, brightness, contrast);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}
+`;
+
+// HUD 5: Radar / Sonar
+export const radarFragment = `#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 fragColor;
+uniform sampler2D inputTexture;
+uniform vec2 resolution;
+uniform float time;
+uniform float brightness;
+uniform float contrast;
+uniform float sweepSpeed;
+uniform float blipIntensity;
+${sharedHelpers}
+void main() {
+  vec2 uv = vTexCoord;
+  vec4 src = texture(inputTexture, uv);
+  float lum = luminance(src.rgb);
+
+  // Dark green tinted source
+  vec3 base = vec3(0.0, lum * 0.5, 0.0);
+
+  // Polar coordinates
+  vec2 c = uv - 0.5;
+  float aspect = resolution.x / resolution.y;
+  c.x *= aspect;
+  float r = length(c);
+  float angle = atan(c.y, c.x); // -PI..PI
+
+  // Normalize angle to 0..1
+  float normAngle = (angle / 6.283185) + 0.5;
+
+  // Sweep angle (rotating)
+  float sweep = fract(time * sweepSpeed * 0.15);
+
+  // Sweep trail (fade behind sweep line)
+  float delta = fract(normAngle - sweep);
+  float trail = exp(-delta * 5.0) * step(delta, 0.98);
+  vec3 sweepColor = vec3(0.0, 1.0, 0.3) * trail * 0.6;
+
+  // Sweep leading edge line
+  float edge = 1.0 - smoothstep(0.0, 0.015, abs(delta));
+  sweepColor += vec3(0.2, 1.0, 0.4) * edge;
+
+  // Radar ring grid
+  float rings = step(0.98, fract(r * 5.0)) * 0.1;
+  vec3 grid = vec3(0.0, rings, 0.0);
+
+  // Bright blips from image content
+  float blip = smoothstep(0.6, 1.0, lum) * trail * blipIntensity;
+  vec3 blipColor = vec3(0.3, 1.0, 0.5) * blip;
+
+  // Mask to circle
+  float mask = step(r, 0.5 / aspect * min(aspect, 1.0) + 0.02);
+
+  vec3 col = (base + sweepColor + grid + blipColor) * mask;
+
+  // Outer frame ring
+  float frame = (1.0 - step(r, 0.495 / aspect * min(aspect, 1.0) + 0.015)) * step(r, 0.5 / aspect * min(aspect, 1.0) + 0.025);
+  col = mix(col, vec3(0.0, 0.5, 0.2), frame);
+
+  col = applyBrightnessContrast(col, brightness, contrast);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}
+`;
+
 // Shaders mapping dictionary
 export const shaderMap = {
   passthrough: passthroughFragment,
   halation: halationFragment,
   filmGrain: filmGrainFragment,
   lightLeaks: lightLeaksFragment,
-  dustScratches: dustScratchesFragment,
   risograph: risographFragment,
   halftone: halftoneFragment,
   filmBurn: filmBurnFragment,
@@ -1535,5 +1771,11 @@ export const shaderMap = {
   technicolor: technicolorFragment,
   vhsGlitch: vhsGlitchFragment,
   solarization: solarizationFragment,
-  vectorScope: vectorScopeFragment
+  vectorScope: vectorScopeFragment,
+  // HUD filters
+  nightVision: nightVisionFragment,
+  thermalVision: thermalVisionFragment,
+  militaryHud: militaryHudFragment,
+  glitchHud: glitchHudFragment,
+  radar: radarFragment,
 };

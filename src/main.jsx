@@ -45,10 +45,33 @@ const defaultSettings = {
     brightness: 0.0,
     contrast: 0.0
   },
-  dustScratches: {
-    dustDensity: 0.15,
-    scratchDensity: 0.1,
-    noiseColor: '#ffffff',
+  nightVision: {
+    noiseIntensity: 0.8,
+    scanlineStrength: 0.6,
+    vignetteStrength: 0.8,
+    brightness: 0.0,
+    contrast: 10.0
+  },
+  thermalVision: {
+    heatIntensity: 1.0,
+    brightness: 0.0,
+    contrast: 0.0
+  },
+  militaryHud: {
+    overlayOpacity: 0.85,
+    scanlineStrength: 0.5,
+    brightness: 0.0,
+    contrast: 15.0
+  },
+  glitchHud: {
+    glitchIntensity: 0.7,
+    blockSize: 8.0,
+    brightness: 0.0,
+    contrast: 0.0
+  },
+  radar: {
+    sweepSpeed: 1.0,
+    blipIntensity: 1.5,
     brightness: 0.0,
     contrast: 0.0
   },
@@ -832,7 +855,6 @@ function App() {
       { id: 'halation', label: 'Halation' },
       { id: 'filmGrain', label: 'Film Grain' },
       { id: 'lightLeaks', label: 'Light Leaks' },
-      { id: 'dustScratches', label: 'Dust & Scratches' },
       { id: 'risograph', label: 'Risograph' },
       { id: 'halftone', label: 'Halftone' },
       { id: 'filmBurn', label: 'Film Burn' },
@@ -843,7 +865,12 @@ function App() {
       { id: 'technicolor', label: 'Technicolor 3-Strip' },
       { id: 'vhsGlitch', label: 'VHS Glitch' },
       { id: 'solarization', label: 'Solarization' },
-      { id: 'vectorScope', label: 'Vector Scope' }
+      { id: 'vectorScope', label: 'Vector Scope' },
+      { id: 'nightVision', label: 'Night Vision' },
+      { id: 'thermalVision', label: 'Thermal Vision' },
+      { id: 'militaryHud', label: 'Military HUD' },
+      { id: 'glitchHud', label: 'Glitch HUD' },
+      { id: 'radar', label: 'Radar' }
     ];
     const fx = fxList.find(f => f.id === settings.activeEffect);
     return fx ? fx.label : settings.activeEffect.replace(/([A-Z])/g, ' $1');
@@ -959,7 +986,6 @@ function App() {
                   { id: 'photocopy', label: 'Photocopy' },
                   { id: 'paperAging', label: 'Paper Aging' },
                   { id: 'filmGrain', label: 'Film Grain' },
-                  { id: 'dustScratches', label: 'Dust & Scratches' },
                   { id: 'inkBleed', label: 'Ink Bleed' },
                   { id: 'cyanotype', label: 'Cyanotype' },
                   { id: 'screenPrint', label: 'Screen Print' },
@@ -975,7 +1001,13 @@ function App() {
                   { id: 'technicolor', label: 'Technicolor 3-Strip' },
                   { id: 'vhsGlitch', label: 'VHS Glitch' },
                   { id: 'solarization', label: 'Solarization' },
-                  { id: 'vectorScope', label: 'Vector Scope' }
+                  { id: 'vectorScope', label: 'Vector Scope' },
+                  // HUD
+                  { id: 'nightVision', label: '🟢 Night Vision' },
+                  { id: 'thermalVision', label: '🔴 Thermal' },
+                  { id: 'militaryHud', label: '🎯 Military HUD' },
+                  { id: 'glitchHud', label: '⚡ Glitch HUD' },
+                  { id: 'radar', label: '📡 Radar' },
                 ].map(fx => (
                   <button
                     key={fx.id}
