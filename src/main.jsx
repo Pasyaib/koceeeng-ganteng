@@ -435,22 +435,7 @@ function App() {
     return () => cancelAnimationFrame(animationFrameId.current);
   }, [activeMedia, settings]);
 
-  // Clear canvas to theme background color when media is removed
-  useEffect(() => {
-    if (!activeMedia && canvasRef.current) {
-      const gl = canvasRef.current.getContext('webgl2') || canvasRef.current.getContext('webgl');
-      if (gl) {
-        // Read theme background color from CSS variable
-        const bgHex = getComputedStyle(document.documentElement)
-          .getPropertyValue('--term-bg').trim().replace('#', '');
-        const r = parseInt(bgHex.substring(0, 2), 16) / 255 || 0;
-        const g = parseInt(bgHex.substring(2, 4), 16) / 255 || 0;
-        const b = parseInt(bgHex.substring(4, 6), 16) / 255 || 0;
-        gl.clearColor(r, g, b, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      }
-    }
-  }, [activeMedia]);
+  // (canvas is hidden via style when !activeMedia — no manual WebGL clear needed)
 
   // Handle file uploads
   const handleFileUpload = (e) => {
@@ -1080,8 +1065,13 @@ function App() {
               onMouseLeave={handleMouseLeave}
               onMouseDown={handleMouseDown}
               onMouseUp={handleMouseUp}
-              style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center center', transition: 'transform 0.15s ease-out' }}
-              className="block max-w-full max-h-full object-contain bg-black" 
+              style={{ 
+                transform: `scale(${zoom / 100})`, 
+                transformOrigin: 'center center', 
+                transition: 'transform 0.15s ease-out',
+                visibility: activeMedia ? 'visible' : 'hidden'
+              }}
+              className="block max-w-full max-h-full object-contain" 
             />
           </div>
 
