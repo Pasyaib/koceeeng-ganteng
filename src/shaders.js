@@ -1773,9 +1773,5 @@ export const shaderMap = {
   solarization: solarizationFragment,
   vectorScope: vectorScopeFragment,
   // HUD filters
-  nightVision: nightVisionFragment,
-  thermalVision: thermalVisionFragment,
-  militaryHud: militaryHudFragment,
   glitchHud: glitchHudFragment,
-  radar: radarFragment,
 };

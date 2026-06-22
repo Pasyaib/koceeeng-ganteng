@@ -491,21 +491,9 @@ export class RetroEffectRenderer {
       this.setUniform1f(prog, 'chemicalSwirl', s.chemicalSwirl);
       this.setUniform1f(prog, 'edgeBlur', s.edgeBlur);
       this.setUniform1f(prog, 'silverContrast', s.silverContrast);
-    } else if (fx === 'nightVision') {
-      this.setUniform1f(prog, 'noiseIntensity', s.noiseIntensity);
-      this.setUniform1f(prog, 'scanlineStrength', s.scanlineStrength);
-      this.setUniform1f(prog, 'vignetteStrength', s.vignetteStrength);
-    } else if (fx === 'thermalVision') {
-      this.setUniform1f(prog, 'heatIntensity', s.heatIntensity);
-    } else if (fx === 'militaryHud') {
-      this.setUniform1f(prog, 'overlayOpacity', s.overlayOpacity);
-      this.setUniform1f(prog, 'scanlineStrength', s.scanlineStrength);
     } else if (fx === 'glitchHud') {
       this.setUniform1f(prog, 'glitchIntensity', s.glitchIntensity);
       this.setUniform1f(prog, 'blockSize', s.blockSize);
-    } else if (fx === 'radar') {
-      this.setUniform1f(prog, 'sweepSpeed', s.sweepSpeed);
-      this.setUniform1f(prog, 'blipIntensity', s.blipIntensity);
     }
   }
 
