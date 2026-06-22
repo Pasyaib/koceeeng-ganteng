@@ -435,12 +435,18 @@ function App() {
     return () => cancelAnimationFrame(animationFrameId.current);
   }, [activeMedia, settings]);
 
-  // Clear canvas immediately when media is removed
+  // Clear canvas to theme background color when media is removed
   useEffect(() => {
     if (!activeMedia && canvasRef.current) {
       const gl = canvasRef.current.getContext('webgl2') || canvasRef.current.getContext('webgl');
       if (gl) {
-        gl.clearColor(0, 0, 0, 1);
+        // Read theme background color from CSS variable
+        const bgHex = getComputedStyle(document.documentElement)
+          .getPropertyValue('--term-bg').trim().replace('#', '');
+        const r = parseInt(bgHex.substring(0, 2), 16) / 255 || 0;
+        const g = parseInt(bgHex.substring(2, 4), 16) / 255 || 0;
+        const b = parseInt(bgHex.substring(4, 6), 16) / 255 || 0;
+        gl.clearColor(r, g, b, 1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       }
     }
@@ -1015,7 +1021,7 @@ function App() {
 
         {/* Center Panel - Main Canvas Preview */}
         <main 
-          className="flex-1 bg-black p-4 md:p-6 flex flex-col items-center justify-center relative min-h-[45vh] md:min-h-0 min-w-0 overflow-hidden cursor-default order-1 md:order-2"
+          className="flex-1 bg-term-bg p-4 md:p-6 flex flex-col items-center justify-center relative min-h-[45vh] md:min-h-0 min-w-0 overflow-hidden cursor-default order-1 md:order-2"
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
