@@ -1,0 +1,759 @@
+Factor + 0.5;
+  return clamp(result, vec3f(0.0), vec3f(1.0));
+}
+
+fn sampleBrightness(uv: vec2f) -> f32 {
+  let color = textureSample(inputTexture, texSampler, uv).rgb;
+  let adjusted = applyBrightnessContrast(color, uniforms.brightness, uniforms.contrast);
+  return luminance(adjusted);
+}
+
+@fragment
+fn fragmentMain(@location(0) texCoord: vec2f) -> @location(0) vec4f {
+  var color = textureSample(inputTexture, texSampler, texCoord).rgb;
+  color = applyBrightnessContrast(color, uniforms.brightness, uniforms.contrast);
+
+  var brightness = luminance(color);
+
+  if (uniforms.invert > 0.5) {
+    brightness = 1.0 - brightness;
+  }
+
+  // Quantize brightness to levels
+  let quantized = floor(brightness * uniforms.levels) / uniforms.levels;
+  let quantizedBrightness = quantized + 0.5 / uniforms.levels;
+
+  // Sample neighbors to detect level boundaries
+  let pixelSize = uniforms.lineThickness / uniforms.resolution;
+
+  let left = sampleBrightness(texCoord + vec2f(-pixelSize.x, 0.0));
+  let right = sampleBrightness(texCoord + vec2f(pixelSize.x, 0.0));
+  let top = sampleBrightness(texCoord + vec2f(0.0, -pixelSize.y));
+  let bottom = sampleBrightness(texCoord + vec2f(0.0, pixelSize.y));
+
+  if (uniforms.invert > 0.5) {
+    // Already inverted center, need to invert neighbors too for comparison
+  }
+
+  let leftQ = floor(left * uniforms.levels);
+  let rightQ = floor(right * uniforms.levels);
+  let topQ = floor(top * uniforms.levels);
+  let bottomQ = floor(bottom * uniforms.levels);
+  let centerQ = floor(brightness * uniforms.levels);
+
+  // Draw line if we're at a level boundary
+  let isContour = (leftQ != centerQ) || (rightQ != centerQ) || (topQ != centerQ) || (bottomQ != centerQ);
+
+  let lineColor = vec3f(uniforms.lineColorR, uniforms.lineColorG, uniforms.lineColorB);
+  let bgColor = vec3f(uniforms.bgColorR, uniforms.bgColorG, uniforms.bgColorB);
+
+  if (isContour) {
+    return vec4f(lineColor, 1.0);
+  }
+
+  // Fill mode
+  let fillModeInt = i32(uniforms.fillMode + 0.5);
+  if (fillModeInt == 1) {
+    // Lines only mode - show background where not a contour
+    return vec4f(bgColor, 1.0);
+  }
+
+  // Filled bands mode
+  let colorModeInt = i32(uniforms.colorMode + 0.5);
+  if (colorModeInt == 1) {
+    // Original colors, quantized
+    let quantizedColor = floor(color * uniforms.levels) / uniforms.levels + 0.5 / uniforms.levels;
+    return vec4f(quantizedColor, 1.0);
+  } else if (colorModeInt == 2) {
+    // Custom - blend between bg and line color based on brightness
+    let blendColor = mix(bgColor, lineColor, quantizedBrightness);
+    return vec4f(blendColor, 1.0);
+  } else {
+    // Grayscale fills (default)
+    return vec4f(vec3f(quantizedBrightness), 1.0);
+  }
+}
+`,HS=`
+${ta}
+
+struct NoiseFieldUniforms {
+  resolution: vec2f,       // offset 0
+  scale: f32,              // offset 8: 10 - 100
+  intensity: f32,          // offset 12: 0.5 - 3.0
+  speed: f32,              // offset 16: 0.1 - 3.0
+  time: f32,               // offset 20
+  octaves: f32,            // offset 24: 1 - 6
+  animate: f32,            // offset 28: 0 or 1
+  brightness: f32,         // offset 32
+  contrast: f32,           // offset 36
+  noiseType: f32,          // offset 40: 0 = perlin, 1 = simplex approx, 2 = worley
+  distortOnly: f32,        // offset 44: 0 = distort + overlay, 1 = distort only
+  _pad: vec2f,             // padding
+}
+
+@group(0) @binding(0) var texSampler: sampler;
+@group(0) @binding(1) var inputTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> uniforms: NoiseFieldUniforms;
+
+fn hash(p: vec2f) -> f32 {
+  return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453);
+}
+
+fn hash2(p: vec2f) -> vec2f {
+  return vec2f(
+    fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453),
+    fract(sin(dot(p, vec2f(269.5, 183.3))) * 43758.5453)
+  );
+}
+
+fn noise(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+
+  return mix(
+    mix(hash(i + vec2f(0.0, 0.0)), hash(i + vec2f(1.0, 0.0)), u.x),
+    mix(hash(i + vec2f(0.0, 1.0)), hash(i + vec2f(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+// Simplex-like noise approximation
+fn simplexNoise(p: vec2f) -> f32 {
+  let K1 = 0.366025404; // (sqrt(3)-1)/2
+  let K2 = 0.211324865; // (3-sqrt(3))/6
+
+  let i = floor(p + (p.x + p.y) * K1);
+  let a = p - i + (i.x + i.y) * K2;
+  let o = step(a.yx, a.xy);
+  let b = a - o + K2;
+  let c = a - 1.0 + 2.0 * K2;
+
+  let h = max(0.5 - vec3f(dot(a, a), dot(b, b), dot(c, c)), vec3f(0.0));
+  let n = h * h * h * h * vec3f(dot(a, hash2(i) - 0.5), dot(b, hash2(i + o) - 0.5), dot(c, hash2(i + 1.0) - 0.5));
+
+  return dot(n, vec3f(70.0));
+}
+
+// Worley (cellular) noise
+fn worleyNoise(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+
+  var minDist = 1.0;
+  for (var y = -1; y <= 1; y = y + 1) {
+    for (var x = -1; x <= 1; x = x + 1) {
+      let neighbor = vec2f(f32(x), f32(y));
+      let point = hash2(i + neighbor);
+      let diff = neighbor + point - f;
+      let dist = length(diff);
+      minDist = min(minDist, dist);
+    }
+  }
+
+  return minDist;
+}
+
+fn getNoise(p: vec2f, noiseType: f32) -> f32 {
+  let typeInt = i32(noiseType + 0.5);
+  if (typeInt == 1) {
+    return simplexNoise(p) * 0.5 + 0.5;
+  } else if (typeInt == 2) {
+    return worleyNoise(p);
+  } else {
+    return noise(p);
+  }
+}
+
+fn fbm(p: vec2f, octaves: i32, noiseType: f32) -> f32 {
+  var value = 0.0;
+  var amplitude = 0.5;
+  var pos = p;
+
+  for (var i = 0; i < octaves; i = i + 1) {
+    value = value + amplitude * getNoise(pos, noiseType);
+    pos = pos * 2.0;
+    amplitude = amplitude * 0.5;
+  }
+
+  return value;
+}
+
+fn applyBrightnessContrast(color: vec3f, brightness: f32, contrast: f32) -> vec3f {
+  var result = color + vec3f(brightness);
+  let contrastFactor = (1.0 + contrast) / (1.0 - contrast * 0.99);
+  result = (result - 0.5) * contrastFactor + 0.5;
+  return clamp(result, vec3f(0.0), vec3f(1.0));
+}
+
+@fragment
+fn fragmentMain(@location(0) texCoord: vec2f) -> @location(0) vec4f {
+  let noiseScale = uniforms.scale;
+
+  var animatedTime = 0.0;
+  if (uniforms.animate > 0.5) {
+    animatedTime = uniforms.time * uniforms.speed;
+  }
+
+  let octaves = i32(uniforms.octaves + 0.5);
+
+  // Generate noise-based displacement
+  let noisePos = texCoord * noiseScale + vec2f(animatedTime * 0.1);
+  let noiseVal = fbm(noisePos, octaves, uniforms.noiseType);
+  let noiseVal2 = fbm(noisePos + vec2f(100.0, 100.0), octaves, uniforms.noiseType);
+
+  // Displace UV coordinates
+  let displacement = (vec2f(noiseVal, noiseVal2) - 0.5) * 2.0 * uniforms.intensity * 0.02;
+  let displacedUV = texCoord + displacement;
+
+  var color = textureSample(inputTexture, texSampler, clamp(displacedUV, vec2f(0.0), vec2f(1.0))).rgb;
+  color = applyBrightnessContrast(color, uniforms.brightness, uniforms.contrast);
+
+  if (uniforms.distortOnly < 0.5) {
+    // Add subtle noise overlay
+    let overlayNoise = fbm(texCoord * noiseScale * 2.0 + animatedTime, octaves, uniforms.noiseType) * 0.1;
+    color = color + vec3f(overlayNoise * uniforms.intensity * 0.3);
+  }
+
+  return vec4f(clamp(color, vec3f(0.0), vec3f(1.0)), 1.0);
+}
+`,VS=`
+${ta}
+
+struct MatrixRainUniforms {
+  resolution: vec2f,       // offset 0
+  cellSize: f32,           // offset 8: base cell size in pixels (4-32)
+  speed: f32,              // offset 12: 0.5 - 3.0
+  trailLength: f32,        // offset 16: 5 - 30
+  time: f32,               // offset 20
+  rainColorR: f32,         // offset 24
+  rainColorG: f32,         // offset 28
+  rainColorB: f32,         // offset 32
+  bgOpacity: f32,          // offset 36: 0 - 1, how much original shows through
+  glowIntensity: f32,      // offset 40: 0 - 2
+  direction: f32,          // offset 44: 0 = down, 1 = up, 2 = left, 3 = right
+  brightness: f32,         // offset 48
+  contrast: f32,           // offset 52
+  threshold: f32,          // offset 56: black point threshold (0-1)
+  spacing: f32,            // offset 60: gap between characters (0-1)
+  // Font atlas metadata
+  atlasSize: vec2f,        // offset 64: total atlas dimensions
+  atlasCharSize: vec2f,    // offset 72: size of each character in atlas
+  atlasCols: f32,          // offset 80: number of columns in atlas
+  charsetLength: f32,      // offset 84: number of characters
+  _pad: vec2f,             // offset 88: padding to 96 bytes
+}
+
+@group(0) @binding(0) var texSampler: sampler;
+@group(0) @binding(1) var inputTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> uniforms: MatrixRainUniforms;
+@group(0) @binding(3) var fontAtlas: texture_2d<f32>;
+
+// Hash functions for randomness
+fn hash11(p: f32) -> f32 {
+  var p2 = fract(p * 0.1031);
+  p2 *= p2 + 33.33;
+  p2 *= p2 + p2;
+  return fract(p2);
+}
+
+fn hash21(p: vec2f) -> f32 {
+  var p3 = fract(vec3f(p.x, p.y, p.x) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+fn luminance(c: vec3f) -> f32 {
+  return dot(c, vec3f(0.299, 0.587, 0.114));
+}
+
+fn applyBrightnessContrast(color: vec3f, brightness: f32, contrast: f32) -> vec3f {
+  var result = color + vec3f(brightness);
+  let contrastFactor = (1.0 + contrast) / (1.0 - contrast * 0.99);
+  result = (result - 0.5) * contrastFactor + 0.5;
+  return clamp(result, vec3f(0.0), vec3f(1.0));
+}
+
+// Sample character from font atlas
+fn sampleFontAtlas(cellUV: vec2f, charIndex: u32, spacing: f32) -> f32 {
+  // Add margin around the character
+  let margin = 0.05 + spacing * 0.15;
+
+  // Check if we're in the margin area (will mask result later)
+  let inMargin = cellUV.x < margin || cellUV.x > 1.0 - margin ||
+                 cellUV.y < margin || cellUV.y > 1.0 - margin;
+
+  // Normalize to inner area (clamp to avoid sampling outside)
+  let innerUV = clamp((cellUV - margin) / (1.0 - 2.0 * margin), vec2f(0.0), vec2f(1.0));
+
+  // Calculate position in atlas
+  let atlasColsU = u32(uniforms.atlasCols);
+  let atlasCol = f32(charIndex % atlasColsU);
+  let atlasRow = f32(charIndex / atlasColsU);
+
+  // Calculate UV in atlas (0-1 range)
+  let charUVWidth = uniforms.atlasCharSize.x / uniforms.atlasSize.x;
+  let charUVHeight = uniforms.atlasCharSize.y / uniforms.atlasSize.y;
+
+  let atlasUV = vec2f(
+    (atlasCol + innerUV.x) * charUVWidth,
+    (atlasRow + innerUV.y) * charUVHeight
+  );
+
+  // Sample the font atlas (must be outside conditional for uniform control flow)
+  let atlasColor = textureSample(fontAtlas, texSampler, atlasUV);
+
+  // Return 0 if in margin, otherwise return sampled value
+  return select(atlasColor.r, 0.0, inMargin);
+}
+
+// Calculate rain intensity for a column at a given position
+fn getRainIntensity(columnIndex: f32, rowPos: f32, time: f32, speed: f32, trailLen: f32, direction: f32) -> vec2f {
+  // Multiple drops per column
+  let numDrops = 3;
+  var maxIntensity = 0.0;
+  var isHead = 0.0;
+
+  for (var i = 0; i < numDrops; i++) {
+    let dropSeed = columnIndex * 73.156 + f32(i) * 31.71;
+    let dropSpeed = 0.5 + hash11(dropSeed) * 0.5;
+    let dropPhase = hash11(dropSeed + 17.3);
+    let dropLength = trailLen * (0.7 + hash11(dropSeed + 41.7) * 0.6);
+
+    // Drop head position (wraps 0-1)
+    let headPos = fract(time * speed * dropSpeed * 0.15 + dropPhase);
+
+    // Distance from head depends on direction
+    var distFromHead: f32;
+    if (direction < 0.5 || direction > 2.5) {
+      // Down or Right: head at headPos, trail behind
+      distFromHead = headPos - rowPos;
+      if (distFromHead < 0.0) {
+        distFromHead += 1.0;
+      }
+    } else {
+      // Up or Left: head at (1-headPos), trail behind
+      let invertedHead = 1.0 - headPos;
+      distFromHead = rowPos - invertedHead;
+      if (distFromHead < 0.0) {
+        distFromHead += 1.0;
+      }
+    }
+
+    // Trail fades out behind head
+    if (distFromHead < dropLength) {
+      let trailIntensity = 1.0 - (distFromHead / dropLength);
+      maxIntensity = max(maxIntensity, trailIntensity * trailIntensity);
+
+      // Check if this is the head
+      if (distFromHead < 0.02) {
+        isHead = 1.0;
+      }
+    }
+  }
+
+  return vec2f(maxIntensity, isHead);
+}
+
+@fragment
+fn fragmentMain(@location(0) texCoord: vec2f) -> @location(0) vec4f {
+  // Sample the source image
+  var srcColor = textureSample(inputTexture, texSampler, texCoord).rgb;
+  srcColor = applyBrightnessContrast(srcColor, uniforms.brightness, uniforms.contrast);
+  let srcBrightness = luminance(srcColor);
+
+  let rainColor = vec3f(uniforms.rainColorR, uniforms.rainColorG, uniforms.rainColorB);
+  let direction = uniforms.direction;
+
+  // Cell/character size - use cellSize directly, with spacing gap
+  let baseCellSize = max(uniforms.cellSize, 4.0);
+  let spacingGap = baseCellSize * uniforms.spacing;
+  let totalCellSize = baseCellSize + spacingGap;
+  let cellsX = uniforms.resolution.x / totalCellSize;
+  let cellsY = uniforms.resolution.y / totalCellSize;
+
+  // Which cell are we in?
+  let cellX = floor(texCoord.x * cellsX);
+  let cellY = floor(texCoord.y * cellsY);
+
+  // Position within cell (0-1)
+  // For horizontal directions, rotate the cell UV 90 degrees
+  var cellUV: vec2f;
+  if (direction > 1.5) {
+    // Left (2) or Right (3): horizontal flow - rotate characters
+    cellUV = vec2f(
+      fract(texCoord.y * cellsY),
+      fract(texCoord.x * cellsX)
+    );
+  } else {
+    // Down (0) or Up (1): vertical flow
+    cellUV = vec2f(
+      fract(texCoord.x * cellsX),
+      fract(texCoord.y * cellsY)
+    );
+  }
+
+  // Column and row position for rain calculation
+  var columnIndex: f32;
+  var rowPos: f32;
+  if (direction > 1.5) {
+    // Left (2) or Right (3): horizontal flow
+    columnIndex = cellY;
+    rowPos = texCoord.x;
+  } else {
+    // Down (0) or Up (1): vertical flow
+    columnIndex = cellX;
+    rowPos = texCoord.y;
+  }
+
+  // Normalized trail length
+  let trailLen = uniforms.trailLength / 50.0;
+
+  // Get rain intensity and head status
+  let rainData = getRainIntensity(columnIndex, rowPos, uniforms.time, uniforms.speed, trailLen, direction);
+  let rainIntensity = rainData.x;
+  let isHead = rainData.y;
+
+  // Sample the source at cell center for character brightness
+  let cellCenterUV = (vec2f(cellX, cellY) + 0.5) / vec2f(cellsX, cellsY);
+  let cellColor = textureSample(inputTexture, texSampler, cellCenterUV).rgb;
+  let cellBrightness = luminance(cellColor);
+
+  // Character selection: animate through characters based on time and position
+  let charSeed = hash21(vec2f(cellX, cellY));
+  let charAnimIndex = floor(charSeed * 50.0 + uniforms.time * 2.0);
+  let charsetLen = max(uniforms.charsetLength, 1.0);
+  let charIndex = u32(floor(hash11(charAnimIndex) * charsetLen)) % u32(charsetLen);
+
+  // Get character pattern from font atlas
+  let charPattern = sampleFontAtlas(cellUV, charIndex, uniforms.spacing);
+
+  // Calculate local edge strength for more interest in detailed areas
+  let edgeSampleOffset = 1.0 / max(cellsX, cellsY);
+  let leftBright = luminance(textureSample(inputTexture, texSampler, texCoord + vec2f(-edgeSampleOffset, 0.0)).rgb);
+  let rightBright = luminance(textureSample(inputTexture, texSampler, texCoord + vec2f(edgeSampleOffset, 0.0)).rgb);
+  let topBright = luminance(textureSample(inputTexture, texSampler, texCoord + vec2f(0.0, -edgeSampleOffset)).rgb);
+  let bottomBright = luminance(textureSample(inputTexture, texSampler, texCoord + vec2f(0.0, edgeSampleOffset)).rgb);
+  let edgeStrength = abs(leftBright - rightBright) + abs(topBright - bottomBright);
+
+  // Source influence: characters are more active/visible where source is brighter or has edges
+  let sourceInfluence = cellBrightness * 0.7 + edgeStrength * 0.5;
+
+  // Apply threshold - pixels darker than threshold show no characters
+  let thresholdCutoff = uniforms.threshold;
+  let aboveThreshold = step(thresholdCutoff, cellBrightness);
+  let thresholdedInfluence = sourceInfluence * aboveThreshold;
+
+  // Combine rain intensity with source influence
+  let effectiveRain = rainIntensity * aboveThreshold + thresholdedInfluence * 0.4 * (1.0 - rainIntensity);
+
+  // Character visibility - brighter areas and edges show more (only above threshold)
+  let charVisibility = charPattern * (0.15 + thresholdedInfluence * 0.85) * aboveThreshold;
+
+  // Background: dark with hint of source
+  let bgColor = srcColor * uniforms.bgOpacity * 0.1;
+
+  // Rain color modulated by intensity and character pattern
+  let tintedRain = mix(rainColor, rainColor * (0.5 + cellBrightness * 0.5), 0.3);
+  var charColor = tintedRain * effectiveRain * charVisibility;
+
+  // Head glow - bright white/green at the leading edge
+  if (isHead > 0.5 && charPattern > 0.5) {
+    let headBrightness = 0.7 + edgeStrength * 0.5;
+    let headColor = mix(rainColor, vec3f(1.0, 1.0, 1.0), headBrightness);
+    charColor = max(charColor, headColor * charVisibility * uniforms.glowIntensity);
+  }
+
+  // Static characters in bright/edge areas even without rain (reveals the image)
+  let staticIntensity = 0.2 * thresholdedInfluence * (1.0 - rainIntensity * 0.5) * aboveThreshold;
+  let staticChars = rainColor * staticIntensity * charVisibility;
+
+  // Final composition
+  let result = bgColor + charColor + staticChars;
+
+  return vec4f(clamp(result, vec3f(0.0), vec3f(1.0)), 1.0);
+}
+`,qS=`
+${ta}
+
+struct VhsUniforms {
+  resolution: vec2f,
+  time: f32,             // offset 8
+  distortion: f32,       // offset 12: tape warp amount (0-1)
+  noise: f32,            // offset 16: static noise amount (0-1)
+  colorBleed: f32,       // offset 20: RGB separation (0-1)
+  scanlines: f32,        // offset 24: scanline intensity (0-1)
+  trackingError: f32,    // offset 28: horizontal displacement (0-1)
+  brightness: f32,       // offset 32
+  contrast: f32,         // offset 36
+  _pad: vec3f,
+}
+
+@group(0) @binding(0) var texSampler: sampler;
+@group(0) @binding(1) var inputTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> uniforms: VhsUniforms;
+
+fn hash(p: vec2f) -> f32 {
+  return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453);
+}
+
+fn noise(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+
+  return mix(
+    mix(hash(i), hash(i + vec2f(1.0, 0.0)), u.x),
+    mix(hash(i + vec2f(0.0, 1.0)), hash(i + vec2f(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+fn applyBrightnessContrast(color: vec3f, brightness: f32, contrast: f32) -> vec3f {
+  var result = color + vec3f(brightness);
+  let contrastFactor = (1.0 + contrast) / (1.0 - contrast * 0.99);
+  result = (result - 0.5) * contrastFactor + 0.5;
+  return clamp(result, vec3f(0.0), vec3f(1.0));
+}
+
+@fragment
+fn fragmentMain(@location(0) texCoord: vec2f) -> @location(0) vec4f {
+  var uv = texCoord;
+  let time = uniforms.time;
+
+  // === TRACKING ERROR - Horizontal displacement that jumps ===
+  if (uniforms.trackingError > 0.01) {
+    let trackNoise = noise(vec2f(floor(uv.y * 20.0), floor(time * 2.0)));
+    let trackOffset = (trackNoise - 0.5) * 0.1 * uniforms.trackingError;
+
+    // Occasional big jumps
+    let jumpNoise = noise(vec2f(time * 0.5, 0.0));
+    let bigJump = step(0.92, jumpNoise) * (noise(vec2f(uv.y * 5.0, time)) - 0.5) * 0.3;
+
+    uv.x = uv.x + trackOffset + bigJump * uniforms.trackingError;
+  }
+
+  // === TAPE WARP - Wavy distortion ===
+  if (uniforms.distortion > 0.01) {
+    let warpFreq = 3.0 + noise(vec2f(time * 0.1, 0.0)) * 5.0;
+    let warpAmp = uniforms.distortion * 0.02;
+
+    // Vertical wobble
+    uv.x = uv.x + sin(uv.y * warpFreq * 6.28 + time * 2.0) * warpAmp;
+
+    // Horizontal shake
+    let shake = noise(vec2f(time * 10.0, 0.0)) - 0.5;
+    uv.x = uv.x + shake * uniforms.distortion * 0.01;
+
+    // Edge distortion (worse at top/bottom)
+    let edgeDist = abs(uv.y - 0.5) * 2.0;
+    let edgeWarp = pow(edgeDist, 3.0) * uniforms.distortion * 0.1;
+    uv.x = uv.x + sin(time * 3.0 + uv.y * 10.0) * edgeWarp;
+  }
+
+  // Clamp UV
+  uv = clamp(uv, vec2f(0.0), vec2f(1.0));
+
+  // === COLOR BLEED / CHROMA SMEAR ===
+  var color: vec3f;
+  if (uniforms.colorBleed > 0.01) {
+    let bleedAmount = uniforms.colorBleed * 0.01;
+
+    // Sample R, G, B at slightly different positions (horizontal smear)
+    let r = textureSampleLevel(inputTexture, texSampler, uv + vec2f(bleedAmount * 2.0, 0.0), 0.0).r;
+    let g = textureSampleLevel(inputTexture, texSampler, uv, 0.0).g;
+    let b = textureSampleLevel(inputTexture, texSampler, uv - vec2f(bleedAmount * 2.0, 0.0), 0.0).b;
+
+    // Additional blur on chroma
+    var chromaBlur = vec3f(0.0);
+    for (var i = -2; i <= 2; i = i + 1) {
+      let offset = f32(i) * bleedAmount;
+      chromaBlur = chromaBlur + textureSampleLevel(inputTexture, texSampler, uv + vec2f(offset, 0.0), 0.0).rgb;
+    }
+    chromaBlur = chromaBlur / 5.0;
+
+    color = vec3f(r, g, b);
+    color = mix(color, chromaBlur, 0.3);
+  } else {
+    color = textureSampleLevel(inputTexture, texSampler, uv, 0.0).rgb;
+  }
+
+  // === SCANLINES ===
+  if (uniforms.scanlines > 0.01) {
+    let scanline = sin(uv.y * uniforms.resolution.y * 3.14159) * 0.5 + 0.5;
+    let scanlineIntensity = mix(1.0, scanline, uniforms.scanlines * 0.5);
+    color = color * scanlineIntensity;
+
+    // Subtle scanline color variation
+    let scanlinePhase = floor(uv.y * uniforms.resolution.y);
+    color.r = color.r * (1.0 - uniforms.scanlines * 0.1 * step(0.5, fract(scanlinePhase * 0.5)));
+  }
+
+  // === STATIC NOISE ===
+  if (uniforms.noise > 0.01) {
+    // Fine grain noise
+    let grain = hash(uv * uniforms.resolution + vec2f(time * 1000.0)) - 0.5;
+    color = color + vec3f(grain * uniforms.noise * 0.3);
+
+    // Occasional noise bands
+    let bandNoise = noise(vec2f(uv.y * 100.0, time * 5.0));
+    let band = step(0.97, bandNoise) * (hash(vec2f(uv.x * 100.0, time)) - 0.5);
+    color = color + vec3f(band * uniforms.noise);
+
+    // Rolling static bars
+    let barY = fract(time * 0.3);
+    let barDist = abs(uv.y - barY);
+    let inBar = step(barDist, 0.02);
+    let barNoise = hash(vec2f(uv.x * 500.0, floor(time * 60.0))) - 0.5;
+    color = color + vec3f(barNoise * inBar * uniforms.noise * 0.5);
+  }
+
+  // === VHS COLOR CHARACTERISTICS ===
+  // Slight color degradation
+  color = mix(color, vec3f(dot(color, vec3f(0.299, 0.587, 0.114))), 0.1);
+
+  // Boost certain colors typical of VHS
+  color.r = color.r * 1.1;
+  color.b = color.b * 0.9;
+
+  // Slight vignette
+  let vignette = 1.0 - length((uv - 0.5) * vec2f(0.5, 0.7)) * 0.5;
+  color = color * vignette;
+
+  color = applyBrightnessContrast(color, uniforms.brightness, uniforms.contrast);
+  return vec4f(clamp(color, vec3f(0.0), vec3f(1.0)), 1.0);
+}
+`,YS=`
+${ta}
+
+struct VoronoiUniforms {
+  resolution: vec2f,
+  cellSize: f32,         // offset 8: size of cells (10-100)
+  edgeWidth: f32,        // offset 12: border thickness (0-1)
+  edgeColor: f32,        // offset 16: 0=black, 1=white, 2=original
+  colorMode: f32,        // offset 20: 0=cell average, 1=center sample, 2=gradient
+  randomize: f32,        // offset 24: cell point randomness (0-1)
+  brightness: f32,       // offset 28
+  contrast: f32,         // offset 32
+  _pad: vec3f,
+}
+
+@group(0) @binding(0) var texSampler: sampler;
+@group(0) @binding(1) var inputTexture: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> uniforms: VoronoiUniforms;
+
+fn hash2(p: vec2f) -> vec2f {
+  let k = vec2f(0.3183099, 0.3678794);
+  var pp = p * k + k.yx;
+  return fract(16.0 * k * fract(pp.x * pp.y * (pp.x + pp.y))) * 2.0 - 1.0;
+}
+
+fn applyBrightnessContrast(color: vec3f, brightness: f32, contrast: f32) -> vec3f {
+  var result = color + vec3f(brightness);
+  let contrastFactor = (1.0 + contrast) / (1.0 - contrast * 0.99);
+  result = (result - 0.5) * contrastFactor + 0.5;
+  return clamp(result, vec3f(0.0), vec3f(1.0));
+}
+
+// Returns: xy = closest cell center, z = distance to closest, w = distance to second closest
+fn voronoi(p: vec2f, randomness: f32) -> vec4f {
+  let cellP = floor(p);
+  let fractP = fract(p);
+
+  var minDist = 8.0;
+  var minDist2 = 8.0;
+  var closestCell = vec2f(0.0);
+
+  // Check 3x3 neighborhood
+  for (var y = -1; y <= 1; y = y + 1) {
+    for (var x = -1; x <= 1; x = x + 1) {
+      let neighbor = vec2f(f32(x), f32(y));
+      let cellCenter = cellP + neighbor;
+
+      // Random offset for cell point
+      let randOffset = hash2(cellCenter) * randomness * 0.5;
+      let point = neighbor + 0.5 + randOffset;
+
+      let dist = length(point - fractP);
+
+      if (dist < minDist) {
+        minDist2 = minDist;
+        minDist = dist;
+        closestCell = cellCenter;
+      } else if (dist < minDist2) {
+        minDist2 = dist;
+      }
+    }
+  }
+
+  return vec4f(closestCell, minDist, minDist2);
+}
+
+@fragment
+fn fragmentMain(@location(0) texCoord: vec2f) -> @location(0) vec4f {
+  let pixel = texCoord * uniforms.resolution;
+  let cellScale = uniforms.cellSize;
+  let scaledP = pixel / cellScale;
+
+  let vor = voronoi(scaledP, uniforms.randomize);
+  let closestCell = vor.xy;
+  let minDist = vor.z;
+  let minDist2 = vor.w;
+
+  // Edge detection (distance to cell boundary)
+  let edgeDist = minDist2 - minDist;
+  let edge = smoothstep(0.0, uniforms.edgeWidth * 0.3, edgeDist);
+
+  // Sample color based on mode
+  var cellColor: vec3f;
+
+  if (uniforms.colorMode < 0.5) {
+    // Mode 0: Average color in cell region
+    var avgColor = vec3f(0.0);
+    var samples = 0.0;
+
+    // Sample multiple points within the cell
+    for (var dy = -2; dy <= 2; dy = dy + 1) {
+      for (var dx = -2; dx <= 2; dx = dx + 1) {
+        let sampleOffset = vec2f(f32(dx), f32(dy)) * 0.2;
+        let sampleUV = (closestCell + 0.5 + sampleOffset) * cellScale / uniforms.resolution;
+        let clampedUV = clamp(sampleUV, vec2f(0.0), vec2f(1.0));
+        avgColor = avgColor + textureSampleLevel(inputTexture, texSampler, clampedUV, 0.0).rgb;
+        samples = samples + 1.0;
+      }
+    }
+    cellColor = avgColor / samples;
+  } else if (uniforms.colorMode < 1.5) {
+    // Mode 1: Sample at cell center
+    let centerUV = (closestCell + 0.5) * cellScale / uniforms.resolution;
+    let clampedUV = clamp(centerUV, vec2f(0.0), vec2f(1.0));
+    cellColor = textureSampleLevel(inputTexture, texSampler, clampedUV, 0.0).rgb;
+  } else {
+    // Mode 2: Gradient based on distance within cell
+    let centerUV = (closestCell + 0.5) * cellScale / uniforms.resolution;
+    let currentColor = textureSampleLevel(inputTexture, texSampler, texCoord, 0.0).rgb;
+    let centerColor = textureSampleLevel(inputTexture, texSampler, clamp(centerUV, vec2f(0.0), vec2f(1.0)), 0.0).rgb;
+
+    // Blend from center color to edge color based on distance
+    let gradientT = smoothstep(0.0, 0.7, minDist);
+    cellColor = mix(centerColor, currentColor, gradientT * 0.5);
+  }
+
+  // Edge color
+  var edgeCol: vec3f;
+  if (uniforms.edgeColor < 0.5) {
+    edgeCol = vec3f(0.0); // Black
+  } else if (uniforms.edgeColor < 1.5) {
+    edgeCol = vec3f(1.0); // White
+  } else {
+    // Original color (darkened)
+    edgeCol = cellColor * 0.3;
+  }
+
+  // Combine cell and edge
+  var finalColor = mix(edgeCol, cellColor, edge);
+
+  finalColor = applyBrightnessContrast(finalColor, uniforms.brightness, uniforms.contrast);
+  return vec4f(finalColor, 1.0);
+}
+`,mg={ascii:OS,passthrough:kS,characterMatch:RS,postprocess:DS,bloomThreshold:US,bloomBlur:MS,dithering:LS,halftone:zS,threshold:jS,edgeDetection:FS,dots:NS,blockify:BS,crosshatch:IS,waveLines:_S,pixelSort:GS,contour:PS,noiseField:HS,matrixRain:VS,vhs:qS,voronoi:YS};async function XS(){return mg}function A4(t){const n=mg[t];if(!n)throw new Error(`Shader "${t}" not found`);return n}function WS(){return!0}const ZS=({leftSidebar:t,rightSidebar:n,preview:r,floatingActions:i,inputPanel:s,effectsPanel:c,presetsPanel:f,exportPanel:m,settingsPanel:p,advancedPanel:v,postProcessingPanel:g})=>{const b=J(D=>D.setIsMobile),y=J(D=>D.ui.isMobile),C=J(D=>D.ui.isDraggingFile),[w,E]=k.useState("input"),[A,T]=k.useState(!1);if(k.useEffect(()=>{const D=()=>{b(window.innerWidth<1024)};return D(),window.addEventListener("resize",D),()=>window.removeEventListener("resize",D)},[b]),y){const D=[{id:"input",label:"Input",icon:h.jsx("svg",{className:"w-5 h-5",fill:"none",stroke:"currentColor",viewBox:"0 0 24 24",children:h.jsx("path",{strokeLinecap:"round",strokeLinejoin:"round",strokeWidth:1.5,d:"M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"})})},{id:"effects",label:"Effects",icon:h.jsx("svg",{className:"w-5 h-5",fill:"none",stroke:"currentColor",viewBox:"0 0 24 24",children:h.jsx("path",{strokeLinecap:"round",strokeLinejoin:"round",strokeWidth:1.5,d:"M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"})})},{id:"presets",label:"Presets",icon:h.jsx("svg",{className:"w-5 h-5",fill:"none",stroke:"currentColor",viewBox:"0 0 24 24",children:h.jsx("path",{strokeLinecap:"round",strokeLinejoin:"round",strokeWidth:1.5,d:"M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"})})},{id:"export",label:"Export",icon:h.jsx("svg",{className:"w-5 h-5",fill:"none",stroke:"currentColor",viewBox:"0 0 24 24",children:h.jsx("path",{strokeLinecap:"round",strokeLinejoin:"round",strokeWidth:1.5,d:"M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4
